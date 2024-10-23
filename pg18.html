@@ -1,0 +1,297 @@
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego Espacial Mejorado</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-image: url('img75.png');
+            background-size: cover;
+            font-family: Arial, sans-serif;
+        }
+
+        #gameArea {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .nave {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20vw; 
+            max-width: 120px; 
+        }
+
+        .meteorito, .reparacion {
+            position: absolute;
+            max-width: 100px; /* Ajustar el tamaño máximo de los meteoritos y reparaciones */
+            width: 15vw; /* Ajustar el tamaño para pantallas más grandes */
+        }
+
+        #points {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            color: white;
+            font-size: 4vw; /* Ajuste para móviles */
+        }
+
+        #healthBar {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 40vw; /* Ajuste para móviles */
+            height: 3vw; /* Ajuste para móviles */
+            background-color: red;
+        }
+
+        #healthBarInner {
+            height: 100%;
+            background-color: green;
+            width: 100%;
+        }
+
+        #startButton {
+            position: absolute;
+            bottom: 5%;
+            right: 5%;
+            padding: 2vw 4vw; /* Ajuste para móviles */
+            background-color: orange;
+            color: white;
+            font-size: 5vw; /* Ajuste para móviles */
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+        }
+
+        #levelComplete {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: green;
+            color: white;
+            padding: 5vw;
+            font-size: 6vw; /* Ajuste para móviles */
+            display: none;
+            border-radius: 10px;
+        }
+
+        @media (min-width: 768px) {
+            /* Ajustes para pantallas más grandes */
+            .nave {
+                width: 300px;
+                max-width: none; /* Sin límite de ancho en pantallas grandes */
+            }
+
+            #points {
+                font-size: 24px;
+            }
+
+            #healthBar {
+                width: 200px;
+                height: 20px;
+            }
+
+            #startButton {
+                padding: 10px 20px;
+                font-size: 20px;
+            }
+
+            #levelComplete {
+                font-size: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameArea">
+    <img id="nave" src="img76.png" class="nave" alt="Nave espacial">
+    <div id="points">Puntos: 0</div>
+    <div id="healthBar"><div id="healthBarInner"></div></div>
+    <button id="startButton">Start</button>
+    <div id="levelComplete">¡Nivel Completado!</div>
+</div>
+
+<script>
+    let nave = document.getElementById('nave');
+    let gameArea = document.getElementById('gameArea');
+    let pointsDisplay = document.getElementById('points');
+    let healthBarInner = document.getElementById('healthBarInner');
+    let startButton = document.getElementById('startButton');
+    let levelCompleteMessage = document.getElementById('levelComplete');
+    let points = 0;
+    let health = 100;
+    let meteorInterval, repairInterval;
+    let isGameOver = false;
+    let meteoritos = [];
+    let repairs = [];
+    let fallSpeed = 25;
+    let moveSpeed = 60;
+    let collisions = 0;
+
+    function moveNave(direction) {
+        let currentPos = nave.offsetLeft;
+        let naveWidth = nave.offsetWidth;
+
+        if (direction === 'right' && currentPos + naveWidth < window.innerWidth) {
+            nave.style.left = currentPos + moveSpeed + 'px';
+        } else if (direction === 'left' && currentPos > 0) {
+            nave.style.left = currentPos - moveSpeed + 'px';
+        }
+
+        // Verificar si la nave se sale del borde derecho e izquierdo
+        if (parseInt(nave.style.left) < 0) {
+            nave.style.left = '0px'; // Evitar que salga por la izquierda
+        } else if (parseInt(nave.style.left) + naveWidth > window.innerWidth) {
+            nave.style.left = window.innerWidth - naveWidth + 'px'; // Evitar que salga por la derecha
+        }
+    }
+
+    function createMeteorito() {
+        let meteorito = document.createElement('img');
+        let randomMeteor = ['img80.png', 'img81.png', 'img82.png'][Math.floor(Math.random() * 3)];
+        meteorito.src = randomMeteor;
+        meteorito.classList.add('meteorito');
+        meteorito.style.left = Math.random() * (window.innerWidth - 120) + 'px';
+        meteorito.style.top = '-100px';
+        gameArea.appendChild(meteorito);
+        meteoritos.push(meteorito);
+
+        let meteoritoMove = setInterval(() => {
+            if (!isGameOver) {
+                meteorito.style.top = parseInt(meteorito.style.top) + fallSpeed + 'px';
+                if (parseInt(meteorito.style.top) > window.innerHeight) {
+                    clearInterval(meteoritoMove);
+                    meteorito.remove();
+                    meteoritos = meteoritos.filter(m => m !== meteorito);
+
+                    if (!isGameOver) {
+                        points += 3;
+                        pointsDisplay.textContent = 'Puntos: ' + points;
+                        checkLevelComplete();
+                    }
+                }
+                detectCollision(meteorito, meteoritoMove);
+            }
+        }, 40);
+    }
+
+    function createRepair() {
+        let repair = document.createElement('img');
+        repair.src = 'reparacion.png';
+        repair.classList.add('reparacion');
+        repair.style.left = Math.random() * (window.innerWidth - 80) + 'px';
+        repair.style.top = '-100px';
+        gameArea.appendChild(repair);
+        repairs.push(repair);
+
+        let repairMove = setInterval(() => {
+            if (!isGameOver) {
+                repair.style.top = parseInt(repair.style.top) + fallSpeed + 'px';
+                if (parseInt(repair.style.top) > window.innerHeight) {
+                    clearInterval(repairMove);
+                    repair.remove();
+                    repairs = repairs.filter(r => r !== repair);
+                }
+                detectRepairCollision(repair, repairMove);
+            }
+        }, 40);
+    }
+
+    function detectCollision(meteorito, meteoritoMove) {
+        let meteoritoRect = meteorito.getBoundingClientRect();
+        let naveRect = nave.getBoundingClientRect();
+
+        if (naveRect.right >= meteoritoRect.left &&
+            naveRect.left <= meteoritoRect.right &&
+            naveRect.bottom >= meteoritoRect.top &&
+            naveRect.top <= meteoritoRect.bottom) {
+
+            collisions++;
+            health -= 20;  
+            healthBarInner.style.width = Math.max(0, health) + '%';
+
+            if (health <= 0) {
+                isGameOver = true;
+                clearInterval(meteoritoMove);
+                meteorito.remove();
+                showExplosion(nave);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 4000); 
+            }
+
+            meteorito.remove();
+        }
+    }
+
+    function detectRepairCollision(repair, repairMove) {
+        let repairRect = repair.getBoundingClientRect();
+        let naveRect = nave.getBoundingClientRect();
+
+        if (naveRect.right >= repairRect.left &&
+            naveRect.left <= repairRect.right &&
+            naveRect.bottom >= repairRect.top &&
+            naveRect.top <= repairRect.bottom) {
+
+            health = Math.min(100, health + 33.33); 
+            healthBarInner.style.width = health + '%';
+
+            clearInterval(repairMove);
+            repair.remove();
+            repairs = repairs.filter(r => r !== repair);
+        }
+    }
+
+    function checkLevelComplete() {
+        if (points >= 60) {
+            isGameOver = true;
+            clearInterval(meteorInterval);
+            clearInterval(repairInterval);
+            levelCompleteMessage.style.display = 'block';
+
+            setTimeout(() => {
+                window.location.href = 'pg19.html';
+            }, 5000);
+        }
+    }
+
+    function showExplosion(element) {
+        let explosion = document.createElement('img');
+        explosion.src = 'exp1.png';
+        explosion.style.position = 'absolute';
+        explosion.style.left = element.offsetLeft + 'px';
+        explosion.style.top = element.offsetTop + 'px';
+        explosion.style.width = '150px';
+        explosion.style.zIndex = '10';
+        gameArea.appendChild(explosion);
+        setTimeout(() => explosion.remove(), 1000);
+    }
+
+    startButton.addEventListener('click', () => {
+        startButton.style.display = 'none'; 
+        points = 0;
+        pointsDisplay.textContent = 'Puntos: ' + points;
+
+        meteorInterval = setInterval(createMeteorito, 1500);
+        repairInterval = setInterval(createRepair, 5000);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                moveNave('right');
+            } else if (e.key === 'ArrowLeft') {
+                moveNave('left');
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
